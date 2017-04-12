@@ -24,7 +24,7 @@ import numpy as np
 
 file_encoding = 'gbk'
 file_path = './data/'
-out_file_path = './out/'
+output_path = './out/'
 
 file_users = file_path + 'JData_User.csv'
 file_products = file_path + 'JData_Product.csv'
@@ -35,27 +35,27 @@ file_actions_03 = file_path + 'JData_Action_201603.csv'
 file_actions_04 = file_path + 'JData_Action_201604.csv'
 file_actions_arr = [file_actions_02, file_actions_03, file_actions_04]
 
-file_tf_user_actions = out_file_path + 'tf_user_actions.csv'
-file_tf_users = out_file_path + 'tf_users.csv'
-file_tf_product_actions = out_file_path + 'tf_product_actions.csv'
-file_tf_products = out_file_path + 'tf_products.csv'
+file_tf_user_actions = output_path + 'tf_user_actions.csv'
+file_tf_users = output_path + 'tf_users.csv'
+file_tf_product_actions = output_path + 'tf_product_actions.csv'
+file_tf_products = output_path + 'tf_products.csv'
 
-file_tf_dd_user_actions = out_file_path + 'tf_dd_user_actions.csv'
-file_tf_dd_users = out_file_path + 'tf_dd_users.csv'
-file_tf_dd_product_actions = out_file_path + 'tf_dd_product_actions.csv'
-file_tf_dd_products = out_file_path + 'tf_dd_products.csv'
+file_tf_dd_user_actions = output_path + 'tf_dd_user_actions.csv'
+file_tf_dd_users = output_path + 'tf_dd_users.csv'
+file_tf_dd_product_actions = output_path + 'tf_dd_product_actions.csv'
+file_tf_dd_products = output_path + 'tf_dd_products.csv'
 
 
-def read_actions(file_name, file_encoding='gbk', read_columns=None, \
+def read_actions(filename, file_encoding='gbk', read_columns=None, \
                  deduplicate=False, chunck_read=True, chunck_size=100000):
     start = time.time()
     
     df = None
     if chunck_read:
-        reader = pd.read_csv(file_name, encoding=file_encoding, iterator=True)
+        reader = pd.read_csv(filename, encoding=file_encoding, iterator=True)
         df = reader.get_chunk(chunck_size)
     else:
-        df = pd.read_csv(file_name, encoding=file_encoding)
+        df = pd.read_csv(filename, encoding=file_encoding)
 
     if deduplicate == True:
         df.drop_duplicates(inplace=True)
@@ -82,11 +82,11 @@ def read_actions(file_name, file_encoding='gbk', read_columns=None, \
   click2buy(购买点击转化率),
   favor2buy(购买收藏转化率)
 '''
-def group_actions_by(file_name, user_or_product, deduplicate=False):
+def group_actions_by(filename, user_or_product, deduplicate=False):
     start = time.time()
     col = user_or_product
     
-    df = read_actions(file_name, read_columns=[col, "type"], chunck_read=False,\
+    df = read_actions(filename, read_columns=[col, "type"], chunck_read=False,\
                       deduplicate=deduplicate)
 
     r = df.groupby([col,'type']).size().to_frame('count')
@@ -293,9 +293,9 @@ def transform(read_transformed_data_from_file=True, deduplicate=False):
 
 
 '''
-def read_actions(file_name):
+def read_actions(filename):
     start = time.time()
-    df = pd.read_csv(file_name, encoding=file_encoding, infer_datetime_format=True)
+    df = pd.read_csv(filename, encoding=file_encoding, infer_datetime_format=True)
     end = time.time(); elapsed = (end - start); start = end;
     print 'load actions cost %ds'%elapsed
     print df.head()

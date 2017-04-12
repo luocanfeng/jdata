@@ -13,7 +13,6 @@ plt.rcParams['axes.unicode_minus'] = False #用来正常显示负号
 
 file_encoding = 'gbk'
 file_path = './data/'
-out_file_path = './out/'
 
 file_users = file_path + 'JData_User.csv'
 file_products = file_path + 'JData_Product.csv'
@@ -101,8 +100,8 @@ explore actions
 columns: user_id, sku_id, time, model_id, type, cate, brand
 type：1浏览,2加购,3删购,4下单,5关注,6点击
 '''
-def explore_actions(file_name):
-    reader = pd.read_csv(file_name, encoding=file_encoding, \
+def explore_actions(filename):
+    reader = pd.read_csv(filename, encoding=file_encoding, \
                          infer_datetime_format=True, iterator=True)
     df = reader.get_chunk(100000)
     print '\nActions Header:'

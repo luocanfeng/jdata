@@ -3,11 +3,8 @@
 @data: 2017-04-11
 @author: luocanfeng
 
-√ 行为统计
-√ 用户+行为
-TODO 商品+行为
-TODO 性别插值
-TODO 年龄插值
+√ 性别插值
+√ 年龄插值
 TODO 商品属性插值
 TODO 预测用户购买行为
 TODO 预测用户购买商品
@@ -20,27 +17,23 @@ from sklearn import linear_model
 
 
 file_encoding = 'gbk'
-file_path = './data/'
-out_file_path = './out/'
+output_path = './out/'
 
-file_users = file_path + 'JData_User.csv'
-file_products = file_path + 'JData_Product.csv'
-file_comments = file_path + 'JData_Comment.csv'
 
-file_actions_02 = file_path + 'JData_Action_201602.csv'
-file_actions_03 = file_path + 'JData_Action_201603.csv'
-file_actions_04 = file_path + 'JData_Action_201604.csv'
-file_actions_arr = [file_actions_02, file_actions_03, file_actions_04]
+file_tf_users = output_path + 'tf_users.csv'
+file_tf_products = output_path + 'tf_products.csv'
+file_tf_dd_users = output_path + 'tf_dd_users.csv'
+file_tf_dd_products = output_path + 'tf_dd_products.csv'
 
-file_transformed_user_actions = out_file_path + 'transformed_user_actions.csv'
-file_transformed_users = out_file_path + 'transformed_users.csv'
-file_transformed_product_actions = out_file_path + 'transformed_product_actions.csv'
-file_transformed_products = out_file_path + 'transformed_products.csv'
+file_tf_fs_users = output_path + 'tf_fs_users.csv'
+file_tf_dd_fs_users = output_path + 'tf_dd_fs_users.csv'
+file_tf_fsa_users = output_path + 'tf_fsa_users.csv'
+file_tf_dd_fsa_users = output_path + 'tf_dd_fsa_users.csv'
 
 
 
-def load_standard_users():
-    df = pd.read_csv(file_transformed_users, index_col='user_id')
+def load_std_users(filename):
+    df = pd.read_csv(filename, index_col='user_id')
     df.fillna(0, inplace=True)
     
     #数据标准化
@@ -53,21 +46,13 @@ def load_standard_users():
     df_zs['click2buy'] = df['click2buy']
     df_zs['favor2buy'] = df['favor2buy']
     
-    print 'Concate Users and Actions:'
     print df_zs.head()
-    
     return df_zs
-df = load_standard_users()
 
 
 
-'''
-LinearRegression 准确率84.9704%
-LogisticRegression 准确率84.8805%
-LogisticRegressionCV 准确率84.9010%
-'''
-def guess_sex(df):
-    sample = df[df.sex!=0]
+def guess(df, guess_col, exception_val, clf=None):
+    sample = df[df[guess_col]!=exception_val]
 #    sample = sample[sample.age!=0]
     msk = np.random.rand(len(sample)) < 0.8
     train = sample[msk]
@@ -75,14 +60,13 @@ def guess_sex(df):
 #    print '\ntrain\'s len:%d'%len(train)
 #    print 'test\'s len:%d'%len(test)
     
-    y_train = train.sex
-    x_train = train.drop('sex', axis=1)
-    y_test = test.sex
-    x_test = test.drop('sex', axis=1)
+    y_train = train[guess_col]
+    x_train = train.drop(guess_col, axis=1)
+    y_test = test[guess_col]
+    x_test = test.drop(guess_col, axis=1)
     
-    clf = linear_model.LinearRegression()
-#    clf = linear_model.LogisticRegression()
-#    clf = linear_model.LogisticRegressionCV()
+    if clf == None:
+        clf = linear_model.LinearRegression()
     clf.fit(x_train, y_train)
 #    print '\nclf.coef:'
 #    print clf.coef_
@@ -93,43 +77,90 @@ def guess_sex(df):
     t = pd.DataFrame(y_test, index = y_test.index)
     p = pd.DataFrame(y_predict, index = y_test.index, columns=['predict'])
     r = pd.concat([t, p], axis = 1, join='inner')
-    r.columns = ['test', 'predict']
+    r.columns = ['reality', 'predict']
 #    print r.head()
-    r['predict_round'] = r['predict'].apply(lambda x:1 if x>=0 else -1)
-    r['tp'] = r.predict_round == r.test
+    r['predict_round'] = r['predict'].apply(\
+                            lambda x:reflect_predict_to_reality(guess_col, x))
+    r['tp'] = r['predict_round'] == r['reality']
 #    print '\nr:'
 #    print r.head()
     r_len = len(r)
     tp_len = len(r[r.tp==True])
-    print 'tp=%d/%d, %f'%(tp_len, r_len, float(tp_len) / r_len)
+#    print 'tp=%d/%d, %f'%(tp_len, r_len, float(tp_len) / r_len)
     return float(tp_len) / r_len
-precision_arr = [guess_sex(df) for i in range (100)]
-print 'precision=%f'%(np.mean(precision_arr))
 
+def reflect_predict_to_reality(predict_col, val):
+    if predict_col == 'sex':
+        return 1 if val>=0 else -1
+    elif predict_col == 'age':
+        return int(round(val))
+    else:
+        return np.NaN
 
 
 '''
-LinearRegression 准确率51.5214%
-LogisticRegression 准确率54.6331%
-LogisticRegressionCV 准确率54.2840
+before deduplicated
+    guess sex by LinearRegression, precision=0.846415
+    guess sex by LogisticRegression, precision=0.846857
+    guess sex by LogisticRegressionCV, precision=0.846297
+    guess age by LinearRegression, precision=0.515205
+    guess age by LogisticRegression, precision=0.545580
+    guess age by LogisticRegressionCV, precision=0.546151
+after deduplicated
+    guess sex by LinearRegression, precision=0.846691
+    guess sex by LogisticRegression, precision=0.846178
+    guess sex by LogisticRegressionCV, precision=0.849279
+    guess age by LinearRegression, precision=0.515921
+    guess age by LogisticRegression, precision=0.544717
+    guess age by LogisticRegressionCV, precision=0.544684
+行为数据去重并不能帮助提高年龄插值正确率
+性别插值并不能帮助提高年龄插值正确率
 '''
-def guess_age(df):
-    sample = df[df.age!=0]
-    sample = sample[sample.sex!=0]
-    msk = np.random.rand(len(sample)) < 0.8
-    train = sample[msk]
-    test = sample[~msk]
+def precision_of_guess(filename):
+    df = load_std_users(filename)
+    
+    clf = linear_model.LinearRegression()
+    precision_arr = [guess(df, 'sex', 0, clf) for i in range(100)]
+    print 'guess sex by LinearRegression, precision=%f'%(np.mean(precision_arr))
+    
+    clf = linear_model.LogisticRegression()
+    precision_arr = [guess(df, 'sex', 0, clf) for i in range(50)]
+    print 'guess sex by LogisticRegression, precision=%f'%(np.mean(precision_arr))
+    
+    clf = linear_model.LogisticRegressionCV()
+    precision_arr = [guess(df, 'sex', 0, clf) for i in range(10)]
+    print 'guess sex by LogisticRegressionCV, precision=%f'%(np.mean(precision_arr))
+    
+    clf = linear_model.LinearRegression()
+    precision_arr = [guess(df, 'age', 0, clf) for i in range(100)]
+    print 'guess age by LinearRegression, precision=%f'%(np.mean(precision_arr))
+    
+    clf = linear_model.LogisticRegression()
+    precision_arr = [guess(df, 'age', 0, clf) for i in range(20)]
+    print 'guess age by LogisticRegression, precision=%f'%(np.mean(precision_arr))
+    
+    clf = linear_model.LogisticRegressionCV()
+    precision_arr = [guess(df, 'age', 0, clf) for i in range(5)]
+    print 'guess age by LogisticRegressionCV, precision=%f'%(np.mean(precision_arr))
+
+#precision_of_guess(file_tf_fs_users)
+#precision_of_guess(file_tf_dd_fs_users)
+
+
+def fill(filename, guess_col, exception_val, output_file, clf=None):
+    df = load_std_users(file_tf_dd_users)
+    train = df[df[guess_col]!=exception_val]
+    test = df[df[guess_col]==exception_val]
 #    print '\ntrain\'s len:%d'%len(train)
 #    print 'test\'s len:%d'%len(test)
     
-    y_train = train.age
-    x_train = train.drop('age', axis=1)
-    y_test = test.age
-    x_test = test.drop('age', axis=1)
+    y_train = train[guess_col]
+    x_train = train.drop(guess_col, axis=1)
+    y_test = test[guess_col]
+    x_test = test.drop(guess_col, axis=1)
     
-#    clf = linear_model.LinearRegression()
-#    clf = linear_model.LogisticRegression()
-    clf = linear_model.LogisticRegressionCV()
+    if clf == None:
+        clf = linear_model.LinearRegression()
     clf.fit(x_train, y_train)
 #    print '\nclf.coef:'
 #    print clf.coef_
@@ -137,32 +168,43 @@ def guess_age(df):
     y_predict = clf.predict(x_test)
 #    print '\npredict\'s len:%d'%len(y_predict)
     
-    t = pd.DataFrame(y_test, index = y_test.index)
     p = pd.DataFrame(y_predict, index = y_test.index, columns=['predict'])
-    r = pd.concat([t, p], axis = 1, join='inner')
-    r.columns = ['test', 'predict']
-#    print r.head()
-    r['predict_round'] = r['predict'].apply(lambda x:int(round(x/10))*10)
-    r['tp'] = r.predict_round == r.test
-#    print '\nr:'
-#    print r.head()
-    r_len = len(r)
-    tp_len = len(r[r.tp==True])
-    print 'tp=%d/%d, %f'%(tp_len, r_len, float(tp_len) / r_len)
-    return float(tp_len) / r_len
-#precision_arr = [guess_age(df) for i in range (10)]
-#print 'precision=%f'%(np.mean(precision_arr))
-
-def predict_order(df):
-    msk = np.random.rand(len(df)) < 0.8
-    train = df[df.age!=0]
-    test = df[~msk]
-    print len(train)
-    print len(test)
+    p['predict_round'] = p['predict'].apply(\
+                            lambda x:reflect_predict_to_reality(guess_col, x))
+    print len(df)
+    print len(p)
     
-    y_train = train.t4
-    x_train = train.drop('t4', axis=1)
-    print y_train
-    print x_train
-#predict_order(df)
+    df2 = pd.concat([df, p], axis = 1, join='outer')
+    print len(df2)
+    df2['predict_round'].fillna(exception_val, inplace=True)
+    df2[guess_col] = df2.apply(lambda df2: df2['predict_round'] \
+            if df2[guess_col]==exception_val else df2[guess_col], axis=1)
+    print df2
+    print len(df2[df2[guess_col]==exception_val])
+    
+
+    df3 = pd.read_csv(filename, index_col='user_id')
+    df3.fillna(0, inplace=True)
+    
+    df4 = df2[guess_col].to_frame('fill')
+    print df4.head()
+    
+    r = pd.concat([df3, df4], axis = 1, join='outer')
+    r[guess_col] = r['fill']
+    del df,df2,df3,df4,r['fill']
+    print r
+    print len(r[r[guess_col]==exception_val])
+
+    r.to_csv(output_file)
+    return r
+    
+def fill_sex_and_age():
+    clf = linear_model.LogisticRegressionCV()
+    fill(file_tf_users, 'sex', 0, file_tf_fs_users, clf)
+    fill(file_tf_dd_users, 'sex', 0, file_tf_dd_fs_users, clf)
+    fill(file_tf_fs_users, 'age', 0, file_tf_fsa_users, clf)
+    fill(file_tf_dd_fs_users, 'age', 0, file_tf_dd_fsa_users, clf)
+    
+fill_sex_and_age()
+
 
