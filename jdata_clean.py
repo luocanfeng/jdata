@@ -177,8 +177,8 @@ def fill(filename, guess_col, exception_val, output_file, clf=None):
     df2 = pd.concat([df, p], axis = 1, join='outer')
     print len(df2)
     df2['predict_round'].fillna(exception_val, inplace=True)
-    df2[guess_col] = df2.apply(lambda df2: df2['predict_round'] \
-            if df2[guess_col]==exception_val else df2[guess_col], axis=1)
+    df2[guess_col] = df2.apply(lambda r: r['predict_round'] \
+            if r[guess_col]==exception_val else r[guess_col], axis=1)
     print df2
     print len(df2[df2[guess_col]==exception_val])
     
