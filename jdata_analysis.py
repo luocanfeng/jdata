@@ -190,6 +190,7 @@ file_tf_actions_03 = output_path + 'tf_actions_03.csv'
 file_tf_actions_04 = output_path + 'tf_actions_04.csv'
 file_tf_actions_arr = [file_tf_actions_02, file_tf_actions_03, file_tf_actions_04]
 
+'''点击与浏览的相关性相当大，可以视为同一动作进行合并；同一时刻的相同行为进行合并累计'''
 file_tf_actions = output_path + 'tf_actions.csv'
 def count_actions():
     start = time.time()
@@ -219,9 +220,7 @@ def count_actions():
     print 'count actions cost %ds'%elapsed
 #count_actions()
 
-'''
-对比分析后，发现三份文件虽然有时间重叠，但没有数据重复
-'''
+'''对比分析后，发现三份文件虽然有时间重叠，但没有数据重复'''
 def compare_cross_time():
     i=1
     for f in file_tf_actions_arr:
@@ -257,6 +256,7 @@ def compare_cross_time():
         gc.collect()
 #compare_cross_time()
 
+'''三个月份的行为数据进行合并'''
 def merge_actions():
     start = time.time()
     
@@ -281,6 +281,7 @@ def merge_actions():
     print 'merge actions cost %ds'%elapsed
 #merge_actions()
 
+'''用户行为数据分割成多份文件，没有购买行为的一份，购买一次的一份，购买多次的一份'''
 file_tf_b0_actions = output_path + 'tf_b0_actions.csv'
 file_tf_b1_actions = output_path + 'tf_b1_actions.csv'
 file_tf_bn_actions = output_path + 'tf_bn_actions.csv'
@@ -308,8 +309,7 @@ def split_actions_by_buy_num():
     gc.collect()
 #split_actions_by_buy_num()
 
-
-
+'''统计用户行为数据最少的时间点，依此进行“天”的物理分割'''
 def find_lowest_visit_time():
 #    reader = pd.read_csv(file_tf_actions, encoding=file_encoding, iterator=True)
 #    df = reader.get_chunk(default_chunk_size)
@@ -329,6 +329,7 @@ def find_lowest_visit_time():
     gc.collect()
 #find_lowest_visit_time()
 
+'''历史数据中存在以float存放user_id的，此处加以清理'''
 def fix_user_id_as_int():
     files = [file_tf_user_actions, file_tf_dd_user_actions,\
              file_tf_actions_02, file_tf_actions_03, file_tf_actions_04, file_tf_actions,\
@@ -342,9 +343,7 @@ def fix_user_id_as_int():
         gc.collect()
 #fix_user_id_as_int()
 
-'''
-以凌晨四点半为界，将用户行为以天为单位进行分组
-'''
+'''以凌晨四点半为界，将用户行为以天为单位进行分组统计'''
 file_tf_gbd_b0_actions = output_path + 'tf_gbd_b0_actions.csv'
 file_tf_gbd_b1_actions = output_path + 'tf_gbd_b1_actions.csv'
 file_tf_gbd_bn_actions = output_path + 'tf_gbd_bn_actions.csv'
@@ -374,6 +373,7 @@ def group_actions_by_date(in_file, out_file):
 #group_actions_by_date(file_tf_b1_actions, file_tf_gbd_b1_actions)
 #group_actions_by_date(file_tf_bn_actions, file_tf_gbd_bn_actions)
 
+'''用户以天为单位行为统计分组数据中添加date列'''
 def fill_date():
     base_date = np.datetime64('2016-01-30')
     for f in [file_tf_gbd_b0_actions, file_tf_gbd_b1_actions, file_tf_gbd_bn_actions]:
@@ -388,6 +388,7 @@ def fill_date():
         gc.collect()
 #fill_date()
 
+'''用户购买行为'''
 file_tf_buy_actions = output_path + 'tf_buy_actions.csv'
 def find_buy_actions():
     src_files = [file_tf_b1_actions, file_tf_bn_actions]
@@ -413,8 +414,10 @@ def find_buy_actions():
     gc.collect()
 #find_buy_actions()
 
-
-
+'''用户购买之前的行为统计'''
+def actions_before_buy():
+    src_files = [file_tf_b1_actions, file_tf_bn_actions]
+actions_before_buy()
 
 
 
