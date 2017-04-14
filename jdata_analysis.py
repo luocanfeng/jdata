@@ -42,6 +42,8 @@ file_tf_dd_product_actions = output_path + 'tf_dd_product_actions.csv'
 file_tf_dd_products = output_path + 'tf_dd_products.csv'
 
 
+base_datetime = np.datetime64('2016-01-30T16:30')
+base_date = np.datetime64('2016-01-30')
 
 
 '''
@@ -354,14 +356,12 @@ def group_actions_by_date(in_file, out_file):
     df = pd.read_csv(in_file, encoding=file_encoding, infer_datetime_format=True)
     
     df['time'] = pd.to_datetime(df['time'])
-    base_datetime = np.datetime64('2016-01-30T16:30')
     df['date_diff'] = df['time'].apply(lambda x:\
                         int(round((x-base_datetime)/np.timedelta64(1, 'D'))))
 #    print df[df['date_diff']<3]
     
     grp = df.groupby(['user_id', 'date_diff', 'type'])['count'].sum().to_frame('count')
     grp.reset_index(inplace=True)
-    base_date = np.datetime64('2016-01-30')
     grp['date'] = grp['date_diff'].apply(lambda x:base_date+np.timedelta64(x, 'D'))
     print grp
 
@@ -375,7 +375,6 @@ def group_actions_by_date(in_file, out_file):
 
 '''用户以天为单位行为统计分组数据中添加date列'''
 def fill_date():
-    base_date = np.datetime64('2016-01-30')
     for f in [file_tf_gbd_b0_actions, file_tf_gbd_b1_actions, file_tf_gbd_bn_actions]:
         df = pd.read_csv(f)
 #        print df.head()
@@ -393,8 +392,6 @@ file_tf_buy_actions = output_path + 'tf_buy_actions.csv'
 def find_buy_actions():
     src_files = [file_tf_b1_actions, file_tf_bn_actions]
     dfs = []
-    base_datetime = np.datetime64('2016-01-30T16:30')
-    base_date = np.datetime64('2016-01-30')
     for f in src_files:
         df = pd.read_csv(f)
         df = df[df['type']==4]
@@ -415,9 +412,59 @@ def find_buy_actions():
 #find_buy_actions()
 
 '''用户购买之前的行为统计'''
+test_df = pd.DataFrame([[1,0],[2,0],[3,0],[5,0]], columns=['type','count'])
 def actions_before_buy():
     src_files = [file_tf_b1_actions, file_tf_bn_actions]
-actions_before_buy()
+    buy_actions = pd.DataFrame()
+    for f in src_files:
+        reader = pd.read_csv(f, iterator=True)
+        df = reader.get_chunk(default_chunk_size)
+#        df = pd.read_csv(f)
+
+        users = df['user_id'].drop_duplicates().values
+#        print users
+        
+        df['time'] = pd.to_datetime(df['time'])
+        df['date_diff'] = df['time'].apply(lambda x:\
+                            int(round((x-base_datetime)/np.timedelta64(1, 'D'))))
+#        df['date'] = df['date_diff'].apply(lambda x:base_date+np.timedelta64(x, 'D'))
+#        df['date'] = df['date'].apply(lambda x:str(x)[0:10])
+        print df.head()
+        
+        for u in users:
+            user_actions = df[df['user_id']==u]
+            user_actions.reset_index(drop=True, inplace=True)
+            
+            user_buy_index = user_actions[user_actions['type']==4].index.values
+
+            start = 0
+            for i in user_buy_index:
+                buy_action = cal_before_actions(user_actions, start, i)
+#                print buy_action
+                start = i
+                buy_actions = buy_actions.append(buy_action)
+        
+        del df, users
+        gc.collect()
+    return buy_actions
+def cal_before_actions(user_actions, start_index, buy_index):
+    buy_action = user_actions.loc[buy_index].to_frame().T
+#    print type(buy_action)
+#    print buy_action
+    
+    tmp = user_actions[start_index:buy_index][['type','count']]
+    tmp = tmp.append(test_df, ignore_index=True)
+    tmp = tmp.groupby('type').sum()
+#    print type(tmp.loc[1]['count'])
+#    print tmp.loc[1]['count']
+    buy_action['before_view'] = tmp.loc[1]['count']
+    buy_action['before_addcart'] = tmp.loc[2]['count']
+    buy_action['before_delcart'] = tmp.loc[3]['count']
+    buy_action['before_favor'] = tmp.loc[5]['count']
+#    print buy_action
+#    print tmp.head()
+    return buy_action
+print actions_before_buy()
 
 
 
