@@ -44,6 +44,7 @@ def explore_users():
     print '\nUsers\'s length:%d'%len(df)
     print '\nUsers Header:'
     print df.head()
+    print df.dtypes
     print '\nUsers age distribution:'
     print df.groupby('age').size()
     df.groupby('age').size().plot(kind='bar', ax=plt.subplot(ax1))
@@ -65,6 +66,7 @@ def explore_products():
     print '\nProducts\'s length:%d'%len(df)
     print '\nProducts Header:'
     print df.head()
+    print df.dtypes
     print '\nProducts a1 distribution:'
     print df.groupby('a1').size()
     df.groupby('a1').size().plot(kind='bar', ax=plt.subplot(ax4))
@@ -91,6 +93,7 @@ def explore_comments():
     print '\nComments\'s length:%d'%len(df)
     print '\nComments Header:'
     print df.head()
+    print df.dtypes
     #df.groupby('sku_id')
 explore_comments()
 
@@ -106,6 +109,7 @@ def explore_actions(filename):
     df = reader.get_chunk(100000)
     print '\nActions Header:'
     print df.head()
+    print df.dtypes
     
     return df
 explore_actions(file_actions_02)
