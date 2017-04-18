@@ -3,7 +3,7 @@
 @data: 2017-04-15
 @author: luocanfeng
 '''
-import datetime, time, gc, os
+import time, gc, os
 import pandas as pd
 import numpy as np
 
@@ -29,6 +29,9 @@ if not os.path.exists(output_path):
 
     
     
+'''
+b(浏览数), c(点击数), a(加购数), d(删购数), f(关注数), o(下单数)
+'''
 def read_actions(filename, test=False):
     start = time.time()
     
@@ -40,120 +43,148 @@ def read_actions(filename, test=False):
         df = pd.read_csv(filename)
 
     #actions表中的产品分类、品牌属性
-    products_from_actions = df[['sku_id', 'cate', 'brand']]
-    products_from_actions.drop_duplicates(inplace=True)
+    pfa = df[['sku_id', 'cate', 'brand']]
+    pfa.drop_duplicates(inplace=True)
 
+    #按模块ID统计
+    model_keep_cols = ['user_id','sku_id','model_id']
+    models = df[df['model_id'].notnull()][model_keep_cols]
+    models = models.groupby(model_keep_cols).size().to_frame('count')
+    models.reset_index(inplace=True)
+    for c in models.columns:
+        models[c] = models[c].astype(int)
+#    mgu = group_by_model_and(models, 'user_id')
+#    mgp = group_by_model_and(models, 'sku_id')
+
+    #buy actions
+    oas = df[df['type']==4][['user_id','sku_id']]
+    oas = oas.groupby(['user_id','sku_id']).size().to_frame('count')
+    oas.reset_index(inplace=True)
+    
     #删除不必要的字段
-    keep_cols = ['user_id','sku_id','time','type']
+    keep_cols = ['user_id','sku_id','type']
     df = df[keep_cols]
-    #用户ID float -> int
-    df['user_id'] = df['user_id'].astype(int)
-    #点击与浏览相关性相当高，可以合并
-    df['type'] = df['type'].apply(lambda x:1 if x==6 else x)
+    #float -> int
+    for c in keep_cols:
+        df[c] = df[c].astype(int)
     #同一时刻的相同行为进行合并累计
     df = df.groupby(keep_cols).size().to_frame('count')
     df.reset_index(inplace=True)
-#    df.sort_values(['user_id', 'time'], ascending=True, inplace=True)
-#    df.reset_index(drop=True, inplace=True)
-    
-    if not test:
-        end = time.time(); elapsed = (end - start); start = end;
-        print 'read actions cost %ds'%elapsed
-
-    return df, products_from_actions
-    
-'''
-view_num(浏览/点击数), addcart_num(加购数), delcart_num(删购数), 
-buy_num(购买数), favor_num(收藏数),
-'''
-def group_actions_by_user_and_type(filename, test=False):
-    start = time.time()
-    
-    df, products_from_actions = read_actions(filename, test=test)
-
-    actions_groupby_user = group_actions_by(df, 'user_id')
-    actions_groupby_product = group_actions_by(df, 'sku_id')
-    
+    agu = group_actions_by(df, 'user_id')
+    agp = group_actions_by(df, 'sku_id')
     
     del df
     gc.collect()
     
-    end = time.time(); elapsed = (end - start); start = end;
-    print 'load and group actions cost %ds'%elapsed
-    return actions_groupby_user, actions_groupby_product, products_from_actions
+    if not test:
+        end = time.time(); elapsed = (end - start); start = end;
+        print 'read actions cost %ds'%elapsed
+#    return agu, agp, pfa, mgu, mgp
+    return agu, agp, pfa, models, oas
     
 def group_actions_by(actions, col):
     r = actions.groupby([col,'type'])['count'].sum()
     r = r.unstack(level=['type'])
     r.fillna(0, inplace=True)
     r = r[sorted(r.columns.values)]
-    r.columns = ['view_num','addcart_num','delcart_num','buy_num','favor_num']
+    r.columns = ['b', 'a', 'd', 'o', 'f', 'c']
     r.reset_index(inplace=True)
     r.sort_values(col, inplace=True)
+    r.reset_index(drop=True, inplace=True)
+    for c in r.columns:
+        r[c] = r[c].astype(int)
     print '\nGrouped actions:'
     print r.head()
     return r
 
+def group_by_model_and(actions, col):
+    r = actions.groupby([col,'model_id'])['count'].sum()
+    r = r.unstack(level=['model_id'])
+    r.fillna(0, inplace=True)
+    r = r[sorted(r.columns.values)]
+    r.reset_index(inplace=True)
+    r.sort_values(col, inplace=True)
+    r.reset_index(drop=True, inplace=True)
+    for c in r.columns:
+        r[c] = r[c].astype(int)
+    print '\nGrouped by %s and model_id:'%col
+    print r.head()
+    return r
+
 '''
-cart2buy(购买加购转化率), view2buy(购买浏览转化率), favor2buy(购买收藏转化率)
+b2o(浏览下单转化率), c2o(点击下单转化率), a2o(加购下单转化率), f2o(关注下单转化率)
 '''
 def transform_actions(test=False):
-#    if output_files and os.path.exists(output_files[0]):
-#        agu, agp, pfa = None, None, None
-#        if test:
-#            reader_u = pd.read_csv(output_files[0], iterator=True)
-#            agu = reader_u.get_chunk(default_chunk_size)
-#            reader_p = pd.read_csv(output_files[1], iterator=True)
-#            agp = reader_p.get_chunk(default_chunk_size)
-#        else:
-#            agu = pd.read_csv(output_files[0])
-#            agp = pd.read_csv(output_files[1])
-#        pfa = pd.read_csv(output_files[2])
-#        print '\nActions groupby user:'
-#        print agu.head()
-#        print '\nActions groupby product:'
-#        print agp.head()
-#        print '\nProducts from actions:'
-#        print pfa.head()
-#        return agu, agp, pfa
-        
-    agu2,agp2,pfa2 = group_actions_by_user_and_type(file_actions_02, test)
-    agu3,agp3,pfa3 = group_actions_by_user_and_type(file_actions_03, test)
-    agu4,agp4,pfa4 = group_actions_by_user_and_type(file_actions_04, test)
+#    agu2, agp2, pfa2, mgu2, mgp2 = read_actions(file_actions_02, test)
+#    agu3, agp3, pfa3, mgu3, mgp3 = read_actions(file_actions_03, test)
+#    agu4, agp4, pfa4, mgu4, mgp4 = read_actions(file_actions_04, test)
+    agu2, agp2, pfa2, models2, oas2 = read_actions(file_actions_02, test)
+    agu3, agp3, pfa3, models3, oas3 = read_actions(file_actions_03, test)
+    agu4, agp4, pfa4, models4, oas4 = read_actions(file_actions_04, test)
     
-    agu = pd.concat([agu2,agu3,agu4], ignore_index=True)
+    agu = pd.concat([agu2, agu3, agu4], ignore_index=True)
     agu.sort_values('user_id', inplace=True)
     agu = agu.groupby('user_id').sum()
-    agu['click2buy'] = agu.apply(lambda r: div(r['buy_num'], r['view_num']), axis=1)
-    agu['cart2buy'] = agu.apply(lambda r: div(r['buy_num'], r['addcart_num']), axis=1)
-    agu['favor2buy'] = agu.apply(lambda r: div(r['buy_num'], r['favor_num']), axis=1)
+    for c in ['b', 'c', 'a', 'f']:
+        agu['%s2o'%c] = agu.apply(lambda r: div(r['o'], r[c]), axis=1)
+    for c in ['b', 'a', 'd', 'o', 'f', 'c']:
+        agu[c] = agu[c].astype(int)
     print '\nActions groupby user:'
     print agu.head()
-#    if not test:
-#        agu.to_csv(output_files[0])
     
-    agp = pd.concat([agp2,agp3,agp4], ignore_index=True)
+    agp = pd.concat([agp2, agp3, agp4], ignore_index=True)
     agp.sort_values('sku_id', inplace=True)
     agp = agp.groupby('sku_id').sum()
-    agp['view2buy'] = agp.apply(lambda r: div(r['buy_num'], r['view_num']), axis=1)
-    agp['cart2buy'] = agp.apply(lambda r: div(r['buy_num'], r['addcart_num']), axis=1)
-    agp['favor2buy'] = agp.apply(lambda r: div(r['buy_num'], r['favor_num']), axis=1)
-    print '\nActions groupby user:'
+    for c in ['b', 'c', 'a', 'f']:
+        agp['%s2o'%c] = agp.apply(lambda r: div(r['o'], r[c]), axis=1)
+    for c in ['b', 'a', 'd', 'o', 'f', 'c']:
+        agp[c] = agp[c].astype(int)
+    print '\nActions groupby product:'
     print agp.head()
-#    if not test:
-#        agp.to_csv(output_files[1])
     
-    pfa = pd.concat([pfa2,pfa3,pfa4], ignore_index=True)
+    pfa = pd.concat([pfa2, pfa3, pfa4], ignore_index=True)
     pfa.drop_duplicates(inplace=True)
     pfa.set_index('sku_id', inplace=True)
-#    if not test:
-#        pfa.to_csv(output_files[2])
-        
-    return agu, agp, pfa
+    
+#    mgu = pd.concat([mgu2, mgu3, mgu4], ignore_index=True)
+#    mgu.fillna(0, inplace=True)
+#    mgu.sort_values('user_id', inplace=True)
+#    mgu = mgu.groupby('user_id').sum()
+#    for c in mgu.columns:
+#        mgu[c] = mgu[c].astype(int)
+#    print '\nModels groupby user:'
+#    print mgu.head()
+#    
+#    mgp = pd.concat([mgp2, mgp3, mgp4], ignore_index=True)
+#    mgp.fillna(0, inplace=True)
+#    mgp.sort_values('sku_id', inplace=True)
+#    mgp = mgp.groupby('sku_id').sum()
+#    for c in mgp.columns:
+#        mgp[c] = mgp[c].astype(int)
+#    print '\nModels groupby product:'
+#    print mgp.head()
+    
+    models = pd.concat([models2, models3, models4], ignore_index=True)
+    models = models.groupby(['user_id','sku_id','model_id']).sum()
+    models.reset_index(inplace=True)
+    for c in models.columns:
+        models[c] = models[c].astype(int)
+    print '\nModels:'
+    print models.head()
+    
+    oas = pd.concat([oas2, oas3, oas4], ignore_index=True)
+    oas = oas.groupby(['user_id','sku_id']).sum()
+    oas.reset_index(inplace=True)
+    for c in oas.columns:
+        oas[c] = oas[c].astype(int)
+    print '\nBuy actions:'
+    print oas.head()
+    
+#    return agu, agp, pfa, mgu, mgp
+    return agu, agp, pfa, models, oas
     
 def div(d1, d2):
-    r = float(d1) / (1 if d2==0 else d2)
-    return 1 if r>1 else r
+    return 0. if d1==0 else (1. if d2==0 else min(float(d1)/d2, 1.))
     
 
 
@@ -161,6 +192,8 @@ out_users = output_path + 'users.csv'
 out_user_actions = output_path + 'user_actions.csv'
 out_products_all = output_path + 'products_all.csv'
 out_product_actions = output_path + 'product_actions.csv'
+out_users_models_to_order = output_path + 'umo.csv'
+out_products_models_to_order = output_path + 'pmo.csv'
 def transform(test=False):
     if os.path.exists(out_user_actions):
         user_actions, product_actions = None, None
@@ -176,9 +209,10 @@ def transform(test=False):
         print user_actions.head()
         print '\nProduct Actions:'
         print product_actions.head()
-        return user_actions, product_actions
+        return
         
-    agu, agp, pfa = transform_actions(test)
+#    agu, agp, pfa, mgu, mgp = transform_actions(test)
+    agu, agp, pfa, models, oas = transform_actions(test)
     
     users = pd.read_csv(file_users, encoding=gbk, index_col='user_id')
     
@@ -213,32 +247,18 @@ def transform(test=False):
     if not test:
         users.to_csv(out_users)
     
-    user_actions = users.join(agu, how='left')
+#    user_actions = users.join(agu, how='outer').join(mgu, how='outer')
+    user_actions = users.join(agu, how='outer')
     user_actions.fillna(0, inplace=True)
-    for col in ['view_num','addcart_num','delcart_num','buy_num','favor_num']:
-        user_actions[col] = user_actions[col].astype(int)
+    for c in user_actions.columns:
+        if '2o' not in str(c):
+            user_actions[c] = user_actions[c].astype(int)
     print user_actions.head()
 #    print user_actions.dtypes
     
     if not test:
         user_actions.to_csv(out_user_actions)
         
-    products = pd.read_csv(file_products, index_col='sku_id')
-    pfa.rename(columns={'cate': '_cate', 'brand': '_brand'}, inplace=True)
-    products_all = pd.concat([products, pfa], axis=1)
-    products_all.fillna(-1, inplace=True)
-    products_all['cate'] = products_all.apply(lambda r: \
-            r['_cate'] if r['_cate']!=-1 else r['cate'], axis=1)
-    products_all['brand'] = products_all.apply(lambda r: \
-            r['_brand'] if r['_brand']!=-1 else r['brand'], axis=1)
-    for col in products_all.columns:
-        products_all[col] = products_all[col].astype(int)
-    del products_all['_cate'], products_all['_brand']
-    print products_all.head()
-#    print products_all.dtypes
-    if not test:
-        products_all.to_csv(out_products_all)
-
     comments = pd.read_csv(file_comments, infer_datetime_format=True)
     comments.sort_values(['sku_id','dt'], inplace=True)
     comments = comments.groupby('sku_id').last()
@@ -248,20 +268,72 @@ def transform(test=False):
     print comments.head()
 #    print comments.dtypes
     
-    product_actions = products_all.join(comments, how='outer').join(agp, how='outer')
-    for col in ['a1','a2','a3']:
-        product_actions[col].fillna(-1, inplace=True)
+    products = pd.read_csv(file_products, index_col='sku_id')
+    pfa.rename(columns={'cate': '_cate', 'brand': '_brand'}, inplace=True)
+    products_all = pd.concat([products, pfa], axis=1)
+    products_all.fillna(-1, inplace=True)
+    products_all['cate'] = products_all.apply(lambda r: \
+            r['_cate'] if r['_cate']!=-1 else r['cate'], axis=1)
+    products_all['brand'] = products_all.apply(lambda r: \
+            r['_brand'] if r['_brand']!=-1 else r['brand'], axis=1)
+    del products_all['_cate'], products_all['_brand']
+    products_all = products_all.join(comments, how='outer')
+    products_all.fillna(0, inplace=True)
+    for c in products_all.columns:
+        if c != 'bad_comment_rate':
+            products_all[c] = products_all[c].astype(int)
+    print products_all.head()
+#    print products_all.dtypes
+    if not test:
+        products_all.to_csv(out_products_all)
+
+#    product_actions = products_all.join(agp, how='outer').join(mgp, how='outer')
+    product_actions = products_all.join(agp, how='outer')
+    for c in ['a1','a2','a3']:
+        product_actions[c].fillna(-1, inplace=True)
     product_actions.fillna(0, inplace=True)
-    for col in ['a1','a2','a3','cate','brand','comment_num','has_bad_comment',\
-                'view_num','addcart_num','delcart_num','buy_num','favor_num']:
-        product_actions[col] = product_actions[col].astype(int)
+    for c in product_actions.columns:
+        if '2o' not in str(c) and c != 'bad_comment_rate':
+            product_actions[c] = product_actions[c].astype(int)
     print product_actions.head()
 #    print product_actions.dtypes
 
     if not test:
         product_actions.to_csv(out_product_actions)
     
-    return user_actions, product_actions
+    models = models[['user_id','sku_id','model_id','count']]
+    models.columns = ['user_id','sku_id','model_id','mcount']
+    oas = oas[['user_id','sku_id','count']]
+    oas.columns = ['user_id','sku_id','ocount']
+    mo = pd.merge(models, oas, on=['user_id', 'sku_id'], how='left')
+    mo.sort_values(['user_id','sku_id','model_id'], inplace=True)
+    mo.reset_index(drop=True, inplace=True)
+    mo['ocount'].fillna(0, inplace=True)
+    mo['ocount'] = mo['ocount'].astype(int)
+    print mo.head()
+#    print mo.dtypes
+    
+    umo = mo[['user_id','model_id','mcount','ocount']]
+    umo = umo.groupby(['user_id','model_id']).sum()
+    umo.reset_index(inplace=True)
+    umo.sort_values(['user_id','model_id'], inplace=True)
+    umo.reset_index(drop=True, inplace=True)
+    umo['m2o'] = umo.apply(lambda row: div(row['ocount'], row['mcount']), axis=1)
+    print umo.head()
+#    print umo.dtypes
+    if not test:
+        umo.to_csv(out_users_models_to_order, index=False)
+    
+    pmo = mo[['sku_id','model_id','mcount','ocount']]
+    pmo = pmo.groupby(['sku_id','model_id']).sum()
+    pmo.reset_index(inplace=True)
+    pmo.sort_values(['sku_id','model_id'], inplace=True)
+    pmo.reset_index(drop=True, inplace=True)
+    pmo['m2o'] = pmo.apply(lambda row: div(row['ocount'], row['mcount']), axis=1)
+    print pmo.head()
+#    print pmo.dtypes
+    if not test:
+        pmo.to_csv(out_products_models_to_order, index=False)
 transform(test=False)
 
 
