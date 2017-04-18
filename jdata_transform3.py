@@ -108,8 +108,10 @@ def detect_fault_actions(test=False):
     df['time'] = pd.to_datetime(df['time'])
     df['timedelta'] = df['time'].diff() / np.timedelta64(1, 's')
     df['timedelta'] = df['timedelta'].fillna(0).astype(int)
+    df.sort_values(['sku_id','user_id','time','type'], inplace=True)
     df.reset_index(drop=True, inplace=True)
-    print df.head(20)
+    print df.head(10)
+    print len(df)
 #    print df.dtypes
     del df['time']
     
@@ -129,10 +131,9 @@ def detect_fault_actions(test=False):
             timedelta = 0
             for i2, r2 in pc.iterrows():
                 timedelta += r2['timedelta']
-                if timedelta > 1 or r2['type'] != 6:
+                if timedelta > 1 or r2['user_id'] != r1['user_id'] \
+                        or r2['type'] != 6 or np.isnan(r2['model_id']):
                     break
-                elif r2['user_id'] != r1['user_id'] or np.isnan(r2['model_id']):
-                    continue
                 else:
                     loop.append(int(r2['model_id']))
             pa_loop[p].append(','.join(str(n) for n in sorted(loop)))
